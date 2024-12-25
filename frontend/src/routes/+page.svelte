@@ -7,7 +7,7 @@
     import youtubeLogo from '../../src/images/icons/youtube_logo.svg';
     let tracks: any[] = [];  // State to store tracks
     let isGridView: boolean = true;  // State to toggle between grid and list view
-    let extendedTracks: string[] = [];  // State to store the extended track names
+    let extendedTracks: string[] | any = [];  // State to store the extended track names
     const VITE_SERVER_URL = "http://127.0.0.1:5000"; 
 
   
@@ -69,12 +69,12 @@
         }
     };
 
-    const combineYoutubeAndSpotifyData = (youtubeData, spotifyData) => {
+    const combineYoutubeAndSpotifyData = (youtubeData: any, spotifyData: any) => {
         youtubeData = youtubeTestData;
         spotifyData = spotifyTestData;
 
-        const combinedData = spotifyData.map((spotifyTrack) => {
-            const matchingYoutubeTrack = youtubeData.find((youtubeTrack) => {
+        const combinedData = spotifyData.map((spotifyTrack: any) => {
+            const matchingYoutubeTrack = youtubeData.find((youtubeTrack: any) => {
                 return youtubeTrack.query.id === spotifyTrack.id
             });
 
@@ -134,18 +134,21 @@
         </button>
       </div>
       
-      <ul class={isGridView ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6' : 'space-y-6'}>
+      <ul class={isGridView ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6' : 'space-y-6'}>
         {#each tracks as track}
-        <li class={isGridView ? 'bg-white p-4 rounded-lg shadow-md hover:shadow-xl transition-shadow' : 'flex items-center space-x-4 bg-white p-4 rounded-lg shadow-md hover:shadow-xl transition-shadow'}>
-            <!-- Image on the left -->
-            <img src={track.track_image} alt={track.track_name} class="w-24 h-24 object-cover rounded-md" />
-            
-            <!-- Data on the right -->
-            <div class="flex-1">
-                <a href={track.external_url} target="_blank" class="flex gap-2 text-lg font-semibold text-blue-500 hover:underline">
-                <img src={spotifyLogo} alt="Spotify Logo" width="26px" height="26px"/>
-                {track.track_name} - {track.track_artists.join(', ')}
-            </a>
+        <li class={isGridView ? 'bg-white border border-gray-200 p-4 rounded-lg shadow-md hover:shadow-xl transition-shadow' : 'flex items-center space-x-4 bg-white p-4 rounded-lg shadow-md hover:shadow-xl transition-shadow'}>
+          <div class="flex gap-4">
+               <!-- Image on the left -->
+               <img src={track.track_image} alt={track.track_name} class="w-24 h-24 object-cover rounded-md" />
+               
+               <!-- Data on the right -->
+              <div class="flex-1 flex flex-col justify-between">
+                 <img src={spotifyLogo} alt="Spotify Logo" width="26px" height="26px"/>
+                   <a href={track.external_url} target="_blank" class="flex gap-2 text-lg font-semibold text-blue-500 hover:underline">
+                    {track.track_name} - {track.track_artists.join(', ')}
+                    </a>
+              </div>
+          </div>
 
             <!-- YouTube videos list -->
             {#if track.youtubeVideos && track.youtubeVideos.length > 0}
@@ -163,7 +166,6 @@
                 {/each}
                 </ul>
             {/if}
-            </div>
         </li>
         {/each}
       </ul>
