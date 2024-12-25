@@ -22,5 +22,14 @@ Thumbs.db
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 
+# Env
+.env
+.env.*
+
+# Explicitly track only certain env files if needed
+!.env.example
+!.env.test
+
+# Remove specific .env files from subdirectories
 backend/.env
 frontend/.env
