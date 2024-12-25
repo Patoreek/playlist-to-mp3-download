@@ -1,6 +1,11 @@
 import requests
 import time
 from flask import Blueprint, jsonify
+import os
+
+SPOTIFY_CLIENT_ID = os.getenv('SPOTIFY_CLIENT_ID')
+SPOTIFY_CLIENT_SECRET = os.getenv('SPOTIFY_CLIENT_SECRET')
+
 
 # Global variables to store the token and its expiration time
 spotify_token = None
@@ -22,8 +27,8 @@ def get_spotify_token():
     url = "https://accounts.spotify.com/api/token"
     payload = {
         'grant_type': 'client_credentials',
-        'client_id': '6078d9255b38411a9c4d14e837a3f3c7',  # Replace with your client ID
-        'client_secret': 'e56b0d4e4a374059ba46b5a09d6e80bb'  # Replace with your client secret
+        'client_id': SPOTIFY_CLIENT_ID,  
+        'client_secret': SPOTIFY_CLIENT_SECRET
     }
     headers = {
         'Content-Type': 'application/x-www-form-urlencoded',
@@ -61,6 +66,7 @@ def fetch_web_api(endpoint, method, body=None):
 
 
 def fetch_spotify_playlist(playlist_id):
+    print('fetching spotify playlist')
     endpoint = f'v1/playlists/{playlist_id}/tracks'
     response_data = fetch_web_api(endpoint, 'GET')
     playlistData = response_data.get('items', [])
@@ -69,7 +75,7 @@ def fetch_spotify_playlist(playlist_id):
         tracks_info = []
         
         # Loop through all tracks and extract required details
-        for item in playlistData:
+        for index, item in enumerate(playlistData, start=1):  # Start enumeration from 1
             track = item['track']
             
             track_name = track['name']
@@ -78,6 +84,7 @@ def fetch_spotify_playlist(playlist_id):
             track_image = track['album']['images'][0]['url'] if track['album']['images'] else None
 
             tracks_info.append({
+                'id': index,  # Add unique ID
                 'track_name': track_name,
                 'track_artists': artists,
                 'external_url': external_url,

@@ -3,7 +3,7 @@ from flask_cors import CORS
 
 def create_app():
     app = Flask(__name__)
-    CORS(app)
+    CORS(app, resources={r"/api/*": {"origins": "*"}})
 
     # Registering API blueprints for different services
     from .api.spotify.endpoints import spotify_blueprint
