@@ -13,17 +13,17 @@
   
     // Fetch data from the server
     const fetchSpotifyPlaylist = async () => {
-        tracks = spotifyTestData;
+        // tracks = spotifyTestData;
         // const spotifyPlaylistId = "4UvlgqVm4gE5cyOx81JSMj";
-
-        // const url = `${VITE_SERVER_URL}/api/spotify/get-playlist/${spotifyPlaylistId}`;
-        // try {
-        //     const data = await apiGet(url);  // Default method is 'GET'
-        //     tracks = data.tracks || [];
-        //     console.log(data.tracks);
-        // } catch (error) {
-        //     console.error('Error fetching playlist:', error);
-        // }
+        const spotifyPlaylistId = "4QS0wutGTV59WwcXaI4pbn";
+        const url = `${VITE_SERVER_URL}/api/spotify/get-playlist/${spotifyPlaylistId}`;
+        try {
+            const data = await apiGet(url);  // Default method is 'GET'
+            tracks = data.tracks.tracks || [];
+            console.log(data.tracks.tracks);
+        } catch (error) {
+            console.error('Error fetching playlist:', error);
+        }
     };
 
 

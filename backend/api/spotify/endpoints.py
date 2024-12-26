@@ -1,7 +1,12 @@
 import requests
 import time
+from datetime import datetime, timedelta
 from flask import Blueprint, jsonify
+import json
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 SPOTIFY_CLIENT_ID = os.getenv('SPOTIFY_CLIENT_ID')
 SPOTIFY_CLIENT_SECRET = os.getenv('SPOTIFY_CLIENT_SECRET')
@@ -25,6 +30,8 @@ def get_spotify_token():
 
     # If no valid token, fetch a new one
     url = "https://accounts.spotify.com/api/token"
+    print(SPOTIFY_CLIENT_ID)
+    print(SPOTIFY_CLIENT_SECRET)
     payload = {
         'grant_type': 'client_credentials',
         'client_id': SPOTIFY_CLIENT_ID,  
@@ -65,39 +72,64 @@ def fetch_web_api(endpoint, method, body=None):
     return response.json()
 
 
-def fetch_spotify_playlist(playlist_id):
-    print('fetching spotify playlist')
-    endpoint = f'v1/playlists/{playlist_id}/tracks'
-    response_data = fetch_web_api(endpoint, 'GET')
-    playlistData = response_data.get('items', [])
+def fetch_spotify_playlist(playlist_id, force_update=False):
+    print("Fetching Spotify playlist...")
+    cache_dir = "backend/cached_playlists"
+    os.makedirs(cache_dir, exist_ok=True)  # Ensure the cache directory exists
+    filename = f"Playlist - {playlist_id}.json".replace(" ", "_")
+    filepath = os.path.join(cache_dir, filename)
 
-    if playlistData:
-        tracks_info = []
-        
-        # Loop through all tracks and extract required details
-        for index, item in enumerate(playlistData, start=1):  # Start enumeration from 1
-            track = item['track']
-            
-            track_name = track['name']
-            artists = [artist['name'] for artist in track['artists']]
-            external_url = track['external_urls']['spotify']
-            track_image = track['album']['images'][0]['url'] if track['album']['images'] else None
+    # Check if cached file exists
+    if not force_update and os.path.exists(filepath):
+        with open(filepath, "r") as file:
+            cached_data = json.load(file)
 
-            tracks_info.append({
-                'id': index,  # Add unique ID
-                'track_name': track_name,
-                'track_artists': artists,
-                'external_url': external_url,
-                'track_image': track_image,
-            })
+        # Check if cache is less than 24 hours old
+        updated_at = datetime.fromisoformat(cached_data["updated_at"])
+        if datetime.now() - updated_at < timedelta(hours=24):
+            print("Returning cached playlist data.")
+            return cached_data
 
-        return tracks_info
+    # Fetch data from Spotify API
+    endpoint = f"v1/playlists/{playlist_id}/tracks"
+    response_data = fetch_web_api(endpoint, "GET")
+    playlist_data = response_data.get("items", [])
+
+    # Process tracks
+    tracks_info = []
+    for index, item in enumerate(playlist_data, start=1):
+        track = item["track"]
+        track_name = track["name"]
+        artists = [artist["name"] for artist in track["artists"]]
+        external_url = track["external_urls"]["spotify"]
+        track_image = track["album"]["images"][0]["url"] if track["album"]["images"] else None
+
+        tracks_info.append({
+            "id": index,
+            "track_name": track_name,
+            "track_artists": artists,
+            "external_url": external_url,
+            "track_image": track_image,
+        })
+
+    # Build final structure
+    data = {
+       "playlist_id": playlist_id,
+    "tracks": tracks_info,
+    "updated_at": datetime.now().isoformat(),
+    }
+
+    # Save to JSON file
+    with open(filepath, "w") as file:
+        json.dump(data, file, indent=4)
+
+    print("Returning fresh playlist data.")
+    return data
     
 # Example of the /get-playlist endpoint
 @spotify_blueprint.route('/get-playlist/<playlist_id>')
 def get_spotify_playlist(playlist_id):
     tracks_info = fetch_spotify_playlist(playlist_id)
-        
     return jsonify({
         'message': 'Spotify Playlist received', 
         'playlist_id': playlist_id,

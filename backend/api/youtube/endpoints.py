@@ -2,9 +2,11 @@ import requests
 import time
 from flask import Blueprint, jsonify, request
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 YOUTUBE_API_KEY = os.getenv('YOUTUBE_API_KEY')
-# Authorization blueprint
 youtube_blueprint = Blueprint('youtube', __name__)
     
 # YouTube API URL
