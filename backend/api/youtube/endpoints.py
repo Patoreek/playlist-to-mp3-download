@@ -20,6 +20,7 @@ YOUTUBE_API_URL = "https://www.googleapis.com/youtube/v3/search"
 DAILY_QUOTA_LIMIT = 10000  # Replace this with your actual daily quota limit
 quota_used = 0  # Initialize at the start of the day
 
+### Get Youtube Links from Songs string array
 def get_youtube_links_from_songs(playlistId, offset = 0, pageSize = 50):
     quota_status = can_make_api_call()  # Get the quota status
 
@@ -76,7 +77,7 @@ def get_youtube_links_from_songs(playlistId, offset = 0, pageSize = 50):
             data = response.json()
             increment_quota_usage(100)
             top_videos = []
-            for item in data.get("items", []):
+            for index, item in enumerate(data.get("items", [])):
                 video_id = item["id"]["videoId"]
                 video_title = item["snippet"]["title"]
                 video_url = f"https://www.youtube.com/watch?v={video_id}"
@@ -90,7 +91,8 @@ def get_youtube_links_from_songs(playlistId, offset = 0, pageSize = 50):
                         "medium": thumbnails.get("medium", {}),
                         "high": thumbnails.get("high", {})
                     },
-                    "updated_at": datetime.now().isoformat()
+                    "updated_at": datetime.now().isoformat(),
+                    "selected": index == 0
                 })
             # Append YouTube links to the track
             track["youtube_links"] = top_videos
@@ -120,6 +122,74 @@ def get_youtube_links():
     
     # Process the song names to add ' - Extended' to each one
     results = get_youtube_links_from_songs(playlistId, offset, pageSize)
+
+    # Return the YouTube links in the response
+    return jsonify(results)
+
+### Update Selected Link
+def update_select_link_in_json(playlistId, track, selectedVideo):
+    try:
+        cache_dir = "backend/cached_playlists"
+        filename = f"Playlist - {playlistId}.json".replace(" ", "_")
+        filepath = os.path.join(cache_dir, filename)
+
+        # Check if the file exists
+        if not os.path.exists(filepath):
+            return {"status": "error", "message": f"File not found: {filepath}"}
+
+        # Load the playlist JSON
+        with open(filepath, "r") as file:
+            playlist_data = json.load(file)
+
+        tracks = playlist_data.get("tracks", [])
+        if not tracks:
+            return {"status": "error", "message": "No tracks found in the playlist."}
+
+        # Find the track by id
+        track_found = False
+        for existing_track in tracks:
+            if existing_track["id"] == track["id"]:
+                track_found = True
+                # Loop through youtube_links to update the selected field
+                video_found = False
+                for youtube_link in existing_track.get("youtube_links", []):
+                    if youtube_link["url"] == selectedVideo["url"]:
+                        video_found = True
+                    youtube_link["selected"] = (youtube_link["url"] == selectedVideo["url"])
+
+                if not video_found:
+                    return {"status": "error", "message": "Selected video URL not found in youtube_links."}
+                break
+
+        if not track_found:
+            return {"status": "error", "message": f"Track with ID {track['id']} not found."}
+
+        # Save the updated playlist JSON back to the file
+        with open(filepath, "w") as file:
+            json.dump(playlist_data, file, indent=4)
+
+        return {"status": "success", "message": f"Updated {track['track_name']} successfully."}
+
+    except json.JSONDecodeError:
+        return {"status": "error", "message": "Failed to parse the JSON file. Ensure it is properly formatted."}
+    except Exception as e:
+        return {"status": "error", "message": f"An unexpected error occurred: {str(e)}"}
+
+@youtube_blueprint.route('/update-selected-link', methods=['PUT'])
+def update_selected_link():
+    print('Updating selected link...')
+    # Get the JSON data from the request
+    data = request.get_json()
+    # Ensure the data contains the 'songNames' field (an array of strings)
+    if not data or 'playlistId' not in data:
+        return jsonify({'message': 'Invalid request, no playlistId found'}), 400
+
+    playlistId = data['playlistId']
+    track = data['track']
+    selectedVideo = data['selectedVideo']
+    
+    # Process the song names to add ' - Extended' to each one
+    results = update_select_link_in_json(playlistId, track, selectedVideo)
 
     # Return the YouTube links in the response
     return jsonify(results)

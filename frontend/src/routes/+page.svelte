@@ -1,10 +1,11 @@
 <script lang="ts">
-	import { apiGet, apiPost } from './../utils/apiClient.js';
+	import { apiGet, apiPost, apiPut } from './../utils/apiClient.js';
     import { onMount } from 'svelte';
-    import spotifyTestData from '../utils/spotifyTestData.json';
-    import youtubeTestData from '../utils/youtubeTestData.json';
+
     import spotifyLogo from '../../src/images/icons/spotify_logo.svg';
     import youtubeLogo from '../../src/images/icons/youtube_logo.svg';
+    import { Checkbox } from "$lib/components/ui/checkbox";
+    import { Button } from "$lib/components/ui/button";
     import { Toaster } from "$lib/components/ui/sonner";
     import { toast } from "svelte-sonner";
 
@@ -39,12 +40,9 @@
             let offset = 0; 
             const allYoutubeLinks = [];
             const offsetLimit = 15;
-            // while (offset < extendedTracks.length) {
+            generateExtendedTracks();
             while (offset < extendedTracks.length ) {
-            // while (offset == 0) {
-
                 const url = `${VITE_SERVER_URL}/api/youtube/get-links`;
-
                 // Using the apiClient from the reference code
                 const data = await apiPost(url, {
                   playlistId: spotifyPlaylistId,
@@ -91,6 +89,31 @@
       isGridView = !isGridView;
     };
   
+    const handleVideoSelection = async (track, selectedVideo) => {
+      // Set all videos' selected property to false except the selected one
+      try {
+        track.youtube_links.forEach(video => {
+          video.selected = (video === selectedVideo);
+        });
+        const url = `${VITE_SERVER_URL}/api/youtube/update-selected-link`;
+        const data = await apiPut(url, {
+            playlistId: spotifyPlaylistId,
+            track: track,
+            selectedVideo: selectedVideo
+        });
+        console.log(data);
+        if (data && data.status === "success") {
+          toast.success(data.message);
+        } else {
+          toast.error(data.message);
+        }
+      } catch (error) {
+        console.error('Error: ', error);
+      }
+
+      //TODO: Create an update on the backend store file for a particular youtube link
+    }
+
     // Generate an array of strings in the format: "${track name} - ${Artists names} - Extended"
     const generateExtendedTracks = () => {
         extendedTracks = tracks.map(track => {
@@ -100,10 +123,12 @@
                 name: `${track.track_name} - ${artistNames} - Extended`  // Create the extended name
             };
         
-    });
+        });
+    };
 
-  console.log(extendedTracks);  // Log the result or use it elsewhere
-};
+    const downloadMp3FromYoutube = () => {
+      console.log("Downloading mp3s...");
+    }
   </script>
   
   <Toaster richColors />
@@ -111,22 +136,21 @@
   {#if tracks.length > 0}
     <div class="max-w-7xl mx-auto px-4">
       <div class="mb-4 flex items-center space-x-4">
-        <button 
+        <Button 
           on:click={toggleView} 
-          class="p-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none">
+          class="p-2 bg-blue-500 text-white hover:bg-blue-600 focus:outline-none">
           {isGridView ? 'Switch to List View' : 'Switch to Grid View'}
-        </button>
-        
-        <button 
-          on:click={generateExtendedTracks} 
-          class="p-2 bg-green-500 text-white rounded-md hover:bg-green-600 focus:outline-none">
-          Convert to Extended Tracks
-        </button>
-        <button 
+        </Button>
+        <Button 
           on:click={fetchYoutubeLinks} 
-          class="p-2 bg-orange-500 text-white rounded-md hover:bg-orange-600 focus:outline-none">
+          class="p-2 bg-orange-500 text-white hover:bg-orange-600 focus:outline-none">
           Generate Youtube links from Extended Tracks
-        </button>
+        </Button>
+        <Button 
+          on:click={downloadMp3FromYoutube} 
+          class="p-2 bg-pink-500 text-white hover:bg-pink-600 focus:outline-none">
+          Download .mp3 files
+        </Button>
         <p>Tracks: {tracks.length}</p>
       </div>
       <div class="max-w-7xl mx-auto px-4 flex gap-4 py-5">
@@ -163,6 +187,13 @@
                       <a href={video.url} target="_blank" class="text-sm font-semibold text-blue-500 hover:underline">
                       {video.title}
                       </a>
+                      <!-- Checkbox for video selection -->
+                      <div class="flex items-center mt-2">
+                        <Checkbox
+                          bind:checked={video.selected}
+                          onCheckedChange={() => handleVideoSelection(track, video)}
+                        />
+                      </div>
                   </div>
                   </li>
               {/each}
