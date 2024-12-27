@@ -1,8 +1,11 @@
 import requests
 import time
 from flask import Blueprint, jsonify, request
+from datetime import datetime, timedelta
 import os
 from dotenv import load_dotenv
+import json
+from backend.api.youtube.youtube_quota_manager import can_make_api_call, increment_quota_usage
 
 load_dotenv()
 
@@ -12,94 +15,111 @@ youtube_blueprint = Blueprint('youtube', __name__)
 # YouTube API URL
 YOUTUBE_API_URL = "https://www.googleapis.com/youtube/v3/search"
 
-def get_youtube_links_from_songs(songs):
+
+# Initialize the quota tracker
+DAILY_QUOTA_LIMIT = 10000  # Replace this with your actual daily quota limit
+quota_used = 0  # Initialize at the start of the day
+
+def get_youtube_links_from_songs(playlistId, offset = 0, pageSize = 50):
+    quota_status = can_make_api_call()  # Get the quota status
+
+      # If the API call is restricted due to quota limits, return None
+    if quota_status["value"] == "restricted":
+        print(f"API call restricted due to quota limits: {quota_status['message']}")
+        return {"status": "restricted", "message": quota_status["message"]}
+
+    # Optionally, print the status message for warnings
+    elif quota_status["value"] in ["warning_75", "warning_50", "warning_25"]:
+        print(f"Warning: Current YouTube quota status - {quota_status['message']}")
+      
     results = []
     maxResults = 3
-    for song in songs:
-        print(song)
-        # Make a request to the YouTube API for each song
+
+    cache_dir = "backend/cached_playlists"
+    filename = f"Playlist - {playlistId}.json".replace(" ", "_")
+    filepath = os.path.join(cache_dir, filename)
+
+    # Load the playlist JSON
+    with open(filepath, "r") as file:
+        playlist_data = json.load(file)
+
+    # Get the current page of tracks
+
+    start_index = offset * pageSize
+    end_index = start_index + pageSize
+    tracks = playlist_data["tracks"][start_index:end_index]
+    hasApiBeenCalled = False
+
+    for track in tracks:
+        # Skip tracks that already have YouTube links
+        if len(track["youtube_links"]) >= maxResults:
+            print(f"Skipping track: {track['track_name']} (YouTube links already present)")
+            continue
+        else:   
+                print(f"Getting Youtube links for {track['track_name']}")
+
+        # Query YouTube API
+        query = f"{track['track_name']} {' '.join(track['track_artists'])}"
         params = {
             'part': 'snippet',
-            'q': song['name'],
+            'q': query,
             'key': YOUTUBE_API_KEY,
             'type': 'video',
             'maxResults': maxResults
         }
         response = requests.get(YOUTUBE_API_URL, params=params)
+        hasApiBeenCalled = True
+        print(f"Current track: {track['track_name']}")
+        
+
         if response.status_code == 200:
-            # Parse the response JSON
             data = response.json()
+            increment_quota_usage(100)
             top_videos = []
-            for item in data.get('items', []):
-                video_id = item['id']['videoId']
-                video_title = item['snippet']['title']
+            for item in data.get("items", []):
+                video_id = item["id"]["videoId"]
+                video_title = item["snippet"]["title"]
                 video_url = f"https://www.youtube.com/watch?v={video_id}"
-                thumbnails = item['snippet']['thumbnails']  # Includes all thumbnail sizes
+                thumbnails = item["snippet"]["thumbnails"]
+
                 top_videos.append({
-                    'title': video_title,
-                    'url': video_url,
-                    'thumbnails': {
-                        'default': thumbnails.get('default', {}),
-                        'medium': thumbnails.get('medium', {}),
-                        'high': thumbnails.get('high', {})
-                    }
+                    "title": video_title,
+                    "url": video_url,
+                    "thumbnails": {
+                        "default": thumbnails.get("default", {}),
+                        "medium": thumbnails.get("medium", {}),
+                        "high": thumbnails.get("high", {})
+                    },
+                    "updated_at": datetime.now().isoformat()
                 })
-            results.append({'query': song, 'videos': top_videos})
+            # Append YouTube links to the track
+            track["youtube_links"] = top_videos
         else:
-            # Handle API errors
-            results.append({'query': song, 'error': response.json().get('error', {}).get('message', 'Unknown error')})
+            print(f"Error fetching YouTube links for {track['track_name']}: {response.json().get('error', {}).get('message', 'Unknown error')}")
 
-    return results
+        # Save updated playlist JSON
+        with open(filepath, "w") as file:
+            json.dump(playlist_data, file, indent=4)
 
-# def get_youtube_links_from_songs(song_names):
-#     # Process only the first song in the list for testing
-#     if not song_names:
-#         return {'error': 'No songs provided'}
-    
-#     song = song_names[0]  # Use only the first song
-#     params = {
-#         'part': 'snippet',
-#         'q': song,
-#         'key': YOUTUBE_API_KEY,
-#         'type': 'video',
-#         'maxResults': 3  # Fetch only one result
-#     }
-#     response = requests.get(YOUTUBE_API_URL, params=params)
-
-#     if response.status_code == 200:
-#         # Parse the response JSON
-#         data = response.json()
-#         if data.get('items'):  # Check if there are any results
-#             item = data['items'][0]  # Get the first (and only) result
-#             video_id = item['id']['videoId']
-#             video_title = item['snippet']['title']
-#             video_url = f"https://www.youtube.com/watch?v={video_id}"
-#             return {
-#                 'query': song, 
-#                 'video': {'title': video_title, 'url': video_url}
-#             }
-#         else:
-#             return {'query': song, 'error': 'No results found'}
-#     else:
-#         # Handle API errors
-#         return {'query': song, 'error': response.json().get('error', {}).get('message', 'Unknown error')}
-
+    print("YouTube links updated in playlist JSON.")
+    if (hasApiBeenCalled == False):
+        quota_status['value'] = True
+    return {"apiStatus": quota_status, "playlist_data": playlist_data}
 
 @youtube_blueprint.route('/get-links', methods=['POST'])
 def get_youtube_links():
     # Get the JSON data from the request
     data = request.get_json()
     # Ensure the data contains the 'songNames' field (an array of strings)
-    if not data or 'songNames' not in data:
-        return jsonify({'message': 'Invalid request, no songNames found'}), 400
+    if not data or 'playlistId' not in data:
+        return jsonify({'message': 'Invalid request, no playlistId found'}), 400
 
-    song_names = data['songNames']
+    playlistId = data['playlistId']
+    offset = data['offset']
+    pageSize = data['pageSize']
     
     # Process the song names to add ' - Extended' to each one
-    youtube_links = get_youtube_links_from_songs(song_names)
+    results = get_youtube_links_from_songs(playlistId, offset, pageSize)
 
     # Return the YouTube links in the response
-    return jsonify({
-        'message': 'Youtube Links created!',
-        'tracks': youtube_links,
-    })
+    return jsonify(results)

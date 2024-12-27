@@ -5,22 +5,27 @@
     import youtubeTestData from '../utils/youtubeTestData.json';
     import spotifyLogo from '../../src/images/icons/spotify_logo.svg';
     import youtubeLogo from '../../src/images/icons/youtube_logo.svg';
+    import { Toaster } from "$lib/components/ui/sonner";
+    import { toast } from "svelte-sonner";
+
     let tracks: any[] = [];  // State to store tracks
+    let playlistOverview: any[] = [];
     let isGridView: boolean = true;  // State to toggle between grid and list view
     let extendedTracks: string[] | any = [];  // State to store the extended track names
     const VITE_SERVER_URL = "http://127.0.0.1:5000"; 
 
+    // const spotifyPlaylistId = "4UvlgqVm4gE5cyOx81JSMj";
+    const spotifyPlaylistId = "4QS0wutGTV59WwcXaI4pbn";
   
     // Fetch data from the server
     const fetchSpotifyPlaylist = async () => {
         // tracks = spotifyTestData;
-        // const spotifyPlaylistId = "4UvlgqVm4gE5cyOx81JSMj";
-        const spotifyPlaylistId = "4QS0wutGTV59WwcXaI4pbn";
         const url = `${VITE_SERVER_URL}/api/spotify/get-playlist/${spotifyPlaylistId}`;
         try {
             const data = await apiGet(url);  // Default method is 'GET'
-            tracks = data.tracks.tracks || [];
-            console.log(data.tracks.tracks);
+            tracks = data.playlist.tracks || [];
+            playlistOverview = data.playlist.overview || [];
+            console.log(data.playlist.tracks);
         } catch (error) {
             console.error('Error fetching playlist:', error);
         }
@@ -29,61 +34,51 @@
 
    // Function to fetch YouTube links
     const fetchYoutubeLinks = async () => {
-        // tracks = combineYoutubeAndSpotifyData(null, null);
-        // console.log(tracks);
         try {
             const pageSize = 3; 
             let offset = 0; 
             const allYoutubeLinks = [];
-
+            const offsetLimit = 15;
             // while (offset < extendedTracks.length) {
-            while (offset == 0) {
-                // Slice the array to get the current chunk
-                const chunk = extendedTracks.slice(offset, offset + pageSize);
-                console.log("C", chunk);
+            while (offset < extendedTracks.length ) {
+            // while (offset == 0) {
 
                 const url = `${VITE_SERVER_URL}/api/youtube/get-links`;
 
                 // Using the apiClient from the reference code
-                const data = await apiPost(url, {songNames: chunk});
-
-                if (data && data.tracks) {
-                    console.log("YouTube Links Success:", data.tracks);
-
-                    // Collect the results
-                    allYoutubeLinks.push(...data.tracks);
+                const data = await apiPost(url, {
+                  playlistId: spotifyPlaylistId,
+                  offset: offset,
+                  pageSize: pageSize
+                });
+                console.log("D:", data)
+                if (data && data.playlist_data.tracks) {
+                    console.log("YouTube Links Success:", data.playlist_data.tracks);
+                    tracks = data.playlist_data.tracks
                 } else {
                     console.error("Error:", data?.message || 'Unknown error');
                 }
 
                 // Increment the offset to fetch the next chunk
-                offset += pageSize;
+                offset += 1;
+
+                if (data.apiStatus.value !== true) {
+                  if (data.apiStatus.value === "restricted"){
+                    toast.error(data.apiStatus.message);
+                  } else {
+                    toast.warning(data.apiStatus.message);
+                  }
+                } else {
+                  // toast.success("Youtube Links generated!");
+                }
             }
 
-            console.log("All YouTube Links:", allYoutubeLinks);
-            tracks = combineYoutubeAndSpotifyData(allYoutubeLinks, tracks);
             console.log("Updated Data:", tracks);
-            return allYoutubeLinks; // Return all the fetched links if needed
+            toast.success("Tracks data updated!");
+            return tracks; // Return all the fetched links if needed
         } catch (error) {
             console.error("Error fetching YouTube links:", error);
         }
-    };
-
-    const combineYoutubeAndSpotifyData = (youtubeData: any, spotifyData: any) => {
-        youtubeData = youtubeTestData;
-        spotifyData = spotifyTestData;
-
-        const combinedData = spotifyData.map((spotifyTrack: any) => {
-            const matchingYoutubeTrack = youtubeData.find((youtubeTrack: any) => {
-                return youtubeTrack.query.id === spotifyTrack.id
-            });
-
-            return {
-                ...spotifyTrack,
-                youtubeVideos: matchingYoutubeTrack ? matchingYoutubeTrack.videos : [], // Add YouTube videos or empty array
-            };
-        });
-        return combinedData;
     };
 
   
@@ -111,8 +106,8 @@
 };
   </script>
   
+  <Toaster richColors />
   <h1 class="text-3xl font-bold text-center mb-6">{tracks.length ? "Spotify Playlist" : "Loading..."}</h1>
-  
   {#if tracks.length > 0}
     <div class="max-w-7xl mx-auto px-4">
       <div class="mb-4 flex items-center space-x-4">
@@ -132,8 +127,15 @@
           class="p-2 bg-orange-500 text-white rounded-md hover:bg-orange-600 focus:outline-none">
           Generate Youtube links from Extended Tracks
         </button>
+        <p>Tracks: {tracks.length}</p>
       </div>
-      
+      <div class="max-w-7xl mx-auto px-4 flex gap-4 py-5">
+        <img src={playlistOverview.images[0].url} alt={playlistOverview.name} class="w-16 h-16 object-cover rounded-md" />
+        <div class="">
+          <h1><a href={playlistOverview.external_urls.spotify}>{playlistOverview.name}</a></h1>
+          <h1><a href={playlistOverview.owner.external_urls.spotify}>{playlistOverview.owner.display_name}</a></h1>
+        </div>
+      </div>
       <ul class={isGridView ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6' : 'space-y-6'}>
         {#each tracks as track}
         <li class={isGridView ? 'bg-white border border-gray-200 p-4 rounded-lg shadow-md hover:shadow-xl transition-shadow' : 'flex items-center space-x-4 bg-white p-4 rounded-lg shadow-md hover:shadow-xl transition-shadow'}>
@@ -150,36 +152,25 @@
               </div>
           </div>
 
-            <!-- YouTube videos list -->
-            {#if track.youtubeVideos && track.youtubeVideos.length > 0}
-                <ul class="mt-4 space-y-2">
-                {#each track.youtubeVideos as video}
-                    <li class="flex items-center space-x-4">
-                    <img src={video.thumbnails.medium.url} alt={video.title} class="w-16 h-16 object-cover rounded-md" />
-                    <div>
-                        <img src={youtubeLogo} alt="Youtube Logo" width="26px" height="26px"/>
-                        <a href={video.url} target="_blank" class="text-sm font-semibold text-blue-500 hover:underline">
-                        {video.title}
-                        </a>
-                    </div>
-                    </li>
-                {/each}
-                </ul>
-            {/if}
+          <!-- YouTube videos list -->
+          {#if track.youtube_links && track.youtube_links.length > 0}
+              <ul class="mt-4 space-y-2">
+              {#each track.youtube_links as video}
+                  <li class="flex items-center space-x-4">
+                  <img src={video.thumbnails.medium.url} alt={video.title} class="w-16 h-16 object-cover rounded-md" />
+                  <div>
+                      <img src={youtubeLogo} alt="Youtube Logo" width="26px" height="26px"/>
+                      <a href={video.url} target="_blank" class="text-sm font-semibold text-blue-500 hover:underline">
+                      {video.title}
+                      </a>
+                  </div>
+                  </li>
+              {/each}
+              </ul>
+          {/if}
         </li>
         {/each}
       </ul>
-      
-      {#if extendedTracks.length > 0}
-        <div class="mt-6">
-          <h2 class="text-xl font-semibold mb-4">Extended Tracks:</h2>
-          <ul>
-            {#each extendedTracks as track}
-              <li class="text-gray-700">{track}</li>
-            {/each}
-          </ul>
-        </div>
-      {/if}
     </div>
   {:else}
     <p class="text-center text-gray-500">No tracks found or still loading...</p>
