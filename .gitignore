@@ -5,3 +5,11 @@
 # Remove specific .env files from subdirectories
 backend/.env
 frontend/.env
+backend/m4a_files
+backend/zipped_playlists
+backend/cached_playlists
+
+# Ignore Python cache files
+__pycache__/
+*.pyc
+*.pyo

@@ -90,61 +90,91 @@ def fetch_spotify_playlist(playlist_id, force_update=False):
             print("Returning cached playlist data.")
             return cached_data
     
+    # First, get the playlist overview data
     endpoint = f"v1/playlists/{playlist_id}"
     playlist_overview_data = fetch_web_api(endpoint, "GET")
-    print("TEST")
     playlist_overview_data = {
         "name": playlist_overview_data.get("name"),
         "external_urls": playlist_overview_data.get("external_urls"),
         "images": playlist_overview_data.get("images"),
         "owner": playlist_overview_data.get("owner"),
     }
-    # playlist_tracks_data = playlist_overview_data.get("items", [])
-
-    # Fetch data from Spotify API
-    endpoint = f"v1/playlists/{playlist_id}/tracks"
-    response_data = fetch_web_api(endpoint, "GET")
-    playlist_tracks_data = response_data.get("items", [])
 
     # Load existing data to preserve youtube_links
+    existing_tracks = []  
     if os.path.exists(filepath):
         with open(filepath, "r") as file:
             existing_data = json.load(file)
             existing_tracks = existing_data.get("tracks", [])
-
-    # Process tracks
     tracks_info = []
-    for index, item in enumerate(playlist_tracks_data, start=1):
-        track = item["track"]
-        track_name = track["name"]
-        artists = [artist["name"] for artist in track["artists"]]
-        external_url = track["external_urls"]["spotify"]
-        track_image = track["album"]["images"][0]["url"] if track["album"]["images"] else None
- 
-        # Check if the track exists in the existing data
-        existing_track = next((t for t in existing_tracks if t["track_name"] == track_name), None)
+    offsetSpotify = 0
+    limitSpotify = 100   
+    totalSpotify = 9999999  # Arbitrary high value for total, this will get updated
+
+    while offsetSpotify < totalSpotify:
+        # Construct the correct API endpoint with the current offset and limit
+        next_url = f"v1/playlists/{playlist_id}/tracks?offset={offsetSpotify}&limit={limitSpotify}"
+        print("Grabbing page of results...", next_url)
+
+        response_data = fetch_web_api(next_url, "GET")
+        tracks_data = response_data.get("items", [])
         
-        # If the track exists, preserve the existing youtube_links
-        if existing_track:
-            youtube_links = existing_track.get("youtube_links", [])
-        else:
-            youtube_links = []
+        # Extract relevant track data
+        for index, item in enumerate(tracks_data, start=offsetSpotify + 1):
+            track = item["track"]
+            track_name = track["name"]
+            artists = [artist["name"] for artist in track["artists"]]
+            external_url = track["external_urls"]["spotify"]
+            track_image = track["album"]["images"][0]["url"] if track["album"]["images"] else None
+            added_at = item["added_at"]  # Timestamp of when track was added
+            
+            # Check if the track exists in the existing data
+            if existing_tracks:
+                existing_track = next((t for t in existing_tracks if t["track_name"] == track_name), None)
+                
+                # If the track exists, preserve the existing youtube_links
+                if existing_track:
+                    youtube_links = existing_track.get("youtube_links", [])
+                else:
+                    youtube_links = []
+            else:
+                youtube_links = []
+            tracks_info.append({
+                "id": index,
+                "track_name": track_name,
+                "track_artists": artists,
+                "external_url": external_url,
+                "track_image": track_image,
+                "added_at": added_at,
+                "youtube_links": youtube_links  # Preserve existing youtube_links
+            })
 
-        tracks_info.append({
-            "id": index,
-            "track_name": track_name,
-            "track_artists": artists,
-            "external_url": external_url,
-            "track_image": track_image,
-            "youtube_links": youtube_links  # Preserve existing youtube_links
-        })
+        # Update the offset for the next page
+        offsetSpotify += limitSpotify
+        
+        # Get the total number of tracks and check if there are more pages
+        totalSpotify = response_data.get("total", 0)
+        print("Offset:", offsetSpotify)
+        print("Limit:", limitSpotify)
+        print("Total tracks:", totalSpotify)
+        
+        # Check if there's another page of results
+        if offsetSpotify >= totalSpotify:
+            break
 
-    # Build final structure
+        # Delay to avoid overwhelming the API
+        time.sleep(2.5)
+        print("-----------")
+        
+    # Sort the tracks by the 'added_at' field (most recent first)
+    tracks_info.sort(key=lambda x: datetime.fromisoformat(x["added_at"].replace("Z", "+00:00")), reverse=True)
+
+    # Build final structure and save to cache
     data = {
-    "playlist_id": playlist_id,
-    "overview": playlist_overview_data,
-    "tracks": tracks_info,
-    "updated_at": datetime.now().isoformat(),
+        "playlist_id": playlist_id,
+        "overview": playlist_overview_data,
+        "tracks": tracks_info,
+        "updated_at": datetime.now().isoformat(),
     }
 
     # Save to JSON file
@@ -153,7 +183,7 @@ def fetch_spotify_playlist(playlist_id, force_update=False):
 
     print("Returning fresh playlist data.")
     return data
-    
+
 # Example of the /get-playlist endpoint
 @spotify_blueprint.route('/get-playlist/<playlist_id>')
 def get_spotify_playlist(playlist_id):

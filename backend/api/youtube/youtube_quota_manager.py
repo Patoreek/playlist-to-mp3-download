@@ -54,8 +54,10 @@ def can_make_api_call():
 
    
     # Return appropriate status and message based on quota usage
+    if quota_percentage >= 100:
+        return {"value": "restricted", "message": "You have used 100% of your API quota. Further API calls will be restricted."}
     if quota_percentage >= 90:
-        return {"value": "restricted", "message": "You have used 90% or more of your API quota. Further API calls will be restricted."}
+        return {"value": "warning_90", "message": "You have used 90% or more of your API quota. Consider reducing API calls."}
     elif quota_percentage >= 75:
         return {"value": "warning_75", "message": "75% of your API quota is used. Consider reducing API calls."}
     elif quota_percentage >= 50:

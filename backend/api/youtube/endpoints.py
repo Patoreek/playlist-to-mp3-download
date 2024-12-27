@@ -60,7 +60,7 @@ def get_youtube_links_from_songs(playlistId, offset = 0, pageSize = 50):
                 print(f"Getting Youtube links for {track['track_name']}")
 
         # Query YouTube API
-        query = f"{track['track_name']} {' '.join(track['track_artists'])}"
+        query = f"{track['track_name']} {' '.join(track['track_artists'])} - Extended"
         params = {
             'part': 'snippet',
             'q': query,
@@ -97,7 +97,12 @@ def get_youtube_links_from_songs(playlistId, offset = 0, pageSize = 50):
             # Append YouTube links to the track
             track["youtube_links"] = top_videos
         else:
-            print(f"Error fetching YouTube links for {track['track_name']}: {response.json().get('error', {}).get('message', 'Unknown error')}")
+            print(response.json())
+            error_message = response.json().get('error', {}).get('message', 'Unknown error')
+            error_reason = response.json().get('error', {}).get('errors', [{}])[0].get('reason', 'Unknown reason')
+            print(f"Error fetching YouTube links for {track['track_name']}: {error_message}")
+            print(f"Error reason: {error_reason}")
+            return {"apiStatus": error_reason, "playlist_data": playlist_data}
 
         # Save updated playlist JSON
         with open(filepath, "w") as file:

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { apiGet, apiPost, apiPut } from './../utils/apiClient.js';
-    import { onMount } from 'svelte';
+    import { onMount, onDestroy } from 'svelte';
 
     import spotifyLogo from '../../src/images/icons/spotify_logo.svg';
     import youtubeLogo from '../../src/images/icons/youtube_logo.svg';
@@ -13,12 +13,16 @@
     let tracks: any[] = [];  // State to store tracks
     let playlistOverview: any[] = [];
     let quotaLimits: any = {};
+    let zipFileUrl = null;  // Variable to store the file URL
     let isGridView: boolean = true;  // State to toggle between grid and list view
     let extendedTracks: string[] | any = [];  // State to store the extended track names
     const VITE_SERVER_URL = "http://127.0.0.1:5000"; 
 
-    // const spotifyPlaylistId = "4UvlgqVm4gE5cyOx81JSMj";
-    const spotifyPlaylistId = "4QS0wutGTV59WwcXaI4pbn";
+    // const spotifyPlaylistId = "4QS0wutGTV59WwcXaI4pbn"; // Augh Playlist
+    // const spotifyPlaylistId = "4UvlgqVm4gE5cyOx81JSMj"; // House Classics
+    // const spotifyPlaylistId = "4zndP2wvkpiai68dQQuGUu"; // Techno
+    // const spotifyPlaylistId = "5H2r42I3k1ME2n8rCM1b40"; // Deep Beats
+    const spotifyPlaylistId = "4Pgk83d5LW0xbR1ivSbsC8"; // EDM
   
     // Fetch data from the server
     const fetchSpotifyPlaylist = async () => {
@@ -43,6 +47,7 @@
             const allYoutubeLinks = [];
             const offsetLimit = 15;
             generateExtendedTracks();
+            let apiStatus = null;
             while (offset < extendedTracks.length ) {
                 const url = `${VITE_SERVER_URL}/api/youtube/get-links`;
                 // Using the apiClient from the reference code
@@ -52,6 +57,14 @@
                   pageSize: pageSize
                 });
                 console.log("D:", data)
+                
+                if (data.apiStatus === "quotaExceeded"){
+                  apiStatus = data.apiStatus;
+                  break;
+                } else if (data.apiStatus != "success") {
+                  toast.warning(data.apiStatus.message);
+                }
+
                 if (data && data.playlist_data.tracks) {
                     console.log("YouTube Links Success:", data.playlist_data.tracks);
                     tracks = data.playlist_data.tracks
@@ -63,19 +76,14 @@
                 // Increment the offset to fetch the next chunk
                 offset += 1;
 
-                if (data.apiStatus.value !== true) {
-                  if (data.apiStatus.value === "restricted"){
-                    toast.error(data.apiStatus.message);
-                  } else {
-                    toast.warning(data.apiStatus.message);
-                  }
-                } else {
-                  // toast.success("Youtube Links generated!");
-                }
             }
 
             console.log("Updated Data:", tracks);
-            toast.success("Tracks data updated!");
+            if (apiStatus === "quotaExceeded"){
+              toast.error("Youtube API Quota exceeded for the day!");
+            } else {
+              toast.success("Tracks data updated!");
+            }
             return tracks; // Return all the fetched links if needed
         } catch (error) {
             console.error("Error fetching YouTube links:", error);
@@ -86,6 +94,12 @@
     onMount(async () => {
       await fetchSpotifyPlaylist();
       await fetchQuotaLimitsData();
+    });
+
+    onDestroy(() => {
+      if (zipFileUrl) {
+        URL.revokeObjectURL(zipFileUrl); // Release memory
+      }
     });
   
     // Toggle the view between grid and list
@@ -144,9 +158,41 @@
         });
     };
 
-    const downloadMp3FromYoutube = () => {
+    const downloadMp3FromYoutube = async () => {
       console.log("Downloading mp3s...");
+      try {
+        const url = `${VITE_SERVER_URL}/api/mp3/download-mp3-files/${spotifyPlaylistId}`;
+        const response = await fetch(url);
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch the zip file');
+        }
+
+        const blob = await response.blob();
+        zipFileUrl = URL.createObjectURL(blob);  // Store the file URL in the variable
+
+        console.log("Zip file is ready for download!");
+        toast.success(".zip file is ready for download!");
+      } catch (error) {
+        console.error('Error: ', error);
+      }
     }
+
+    const handleDownload = () => {
+      if (zipFileUrl) {
+        console.log("Downloading file:", zipFileUrl);
+        const link = document.createElement("a");
+        link.href = zipFileUrl;
+        link.download = `${playlistOverview.name}_playlist.zip`;
+        document.body.appendChild(link); // Append link to body
+        link.click(); // Trigger download
+        document.body.removeChild(link); // Clean up
+        URL.revokeObjectURL(zipFileUrl); // Release memory
+        zipFileUrl = null; // Reset blob URL
+      } else {
+        console.log('No zip file ready for download');
+      }
+    };
 
     function getResetTime() {
       const refreshedDate = new Date(quotaLimits.refreshed_on);
@@ -179,6 +225,13 @@
           class="p-2 bg-pink-500 text-white hover:bg-pink-600 focus:outline-none">
           Download .mp3 files
         </Button>
+        {#if zipFileUrl != null}
+        <Button 
+          on:click={handleDownload} 
+          class="p-2 bg-pink-500 text-white hover:bg-pink-600 focus:outline-none">
+          Download {playlistOverview.name}_playlist.zip
+        </Button>
+        {/if}
         <p>Tracks: {tracks.length}</p>
         <div class="max-w-lg mx-auto bg-white shadow-lg rounded-lg p-6">
           <Progress value={quotaPercentage} class="w-full mb-4 h-4 rounded-full bg-gray-200" />
