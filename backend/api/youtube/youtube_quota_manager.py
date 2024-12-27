@@ -3,7 +3,7 @@ import json
 from datetime import datetime
 
 # Path to quota data file
-QUOTA_DATA_FILE = "backend/youtube_quota_data.json"
+QUOTA_DATA_FILE = "backend/data/youtube_quota_data.json"
 
 def load_quota_data():
     """Load the quota data from the JSON file or initialize it if not present."""

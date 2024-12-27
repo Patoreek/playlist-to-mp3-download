@@ -193,3 +193,47 @@ def update_selected_link():
 
     # Return the YouTube links in the response
     return jsonify(results)
+
+
+### Current Quota Limits
+def get_current_quota_limit_data():
+    cache_dir = "backend/data"
+    filename = "youtube_quota_data.json"
+    filepath = os.path.join(cache_dir, filename)
+
+    # Check if the file exists
+    if not os.path.exists(filepath):
+        return {"status": "error", "message": f"File not found: {filepath}"}
+
+    try:
+        # Load the quota data JSON
+        with open(filepath, "r") as file:
+            quota_data = json.load(file)
+
+        # Return the data along with a success status
+        return {
+            "status": "success",
+            "data": {
+                "quota_used": quota_data.get("quota_used"),
+                "daily_quota_limit": quota_data.get("daily_quota_limit"),
+                "updated_at": quota_data.get("updated_at"),
+                "refreshed_on": quota_data.get("refreshed_on")
+            }
+        }
+
+    except json.JSONDecodeError:
+        return {"status": "error", "message": "Failed to parse the JSON file. Ensure it is properly formatted."}
+    except Exception as e:
+        return {"status": "error", "message": f"An unexpected error occurred: {str(e)}"}
+
+  
+
+@youtube_blueprint.route('/get-current-quota-limit', methods=['GET'])
+def get_current_quota_limit():
+    # Process the song names to add ' - Extended' to each one
+    results = get_current_quota_limit_data()
+
+    # Return the YouTube links in the response
+    return jsonify(results)
+
+

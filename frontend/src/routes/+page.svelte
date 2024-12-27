@@ -5,12 +5,14 @@
     import spotifyLogo from '../../src/images/icons/spotify_logo.svg';
     import youtubeLogo from '../../src/images/icons/youtube_logo.svg';
     import { Checkbox } from "$lib/components/ui/checkbox";
+    import { Progress } from "$lib/components/ui/progress";
     import { Button } from "$lib/components/ui/button";
     import { Toaster } from "$lib/components/ui/sonner";
     import { toast } from "svelte-sonner";
 
     let tracks: any[] = [];  // State to store tracks
     let playlistOverview: any[] = [];
+    let quotaLimits: any = {};
     let isGridView: boolean = true;  // State to toggle between grid and list view
     let extendedTracks: string[] | any = [];  // State to store the extended track names
     const VITE_SERVER_URL = "http://127.0.0.1:5000"; 
@@ -56,6 +58,7 @@
                 } else {
                     console.error("Error:", data?.message || 'Unknown error');
                 }
+                await fetchQuotaLimitsData();
 
                 // Increment the offset to fetch the next chunk
                 offset += 1;
@@ -82,6 +85,7 @@
   
     onMount(async () => {
       await fetchSpotifyPlaylist();
+      await fetchQuotaLimitsData();
     });
   
     // Toggle the view between grid and list
@@ -114,6 +118,20 @@
       //TODO: Create an update on the backend store file for a particular youtube link
     }
 
+    const fetchQuotaLimitsData = async () => {
+      // Set all videos' selected property to false except the selected one
+      try {
+        const url = `${VITE_SERVER_URL}/api/youtube/get-current-quota-limit`;
+        const data = await apiGet(url);
+        console.log(data);
+        quotaLimits = data.data;
+      } catch (error) {
+        console.error('Error: ', error);
+      }
+
+      //TODO: Create an update on the backend store file for a particular youtube link
+    }
+
     // Generate an array of strings in the format: "${track name} - ${Artists names} - Extended"
     const generateExtendedTracks = () => {
         extendedTracks = tracks.map(track => {
@@ -129,6 +147,16 @@
     const downloadMp3FromYoutube = () => {
       console.log("Downloading mp3s...");
     }
+
+    function getResetTime() {
+      const refreshedDate = new Date(quotaLimits.refreshed_on);
+      refreshedDate.setHours(refreshedDate.getHours() + 24); // Adds 24 hours
+      return refreshedDate.toLocaleString(); // Formats the date to a readable string
+    }
+
+    $: quotaPercentage = quotaLimits.daily_quota_limit && quotaLimits.quota_used
+    ? (quotaLimits.quota_used / quotaLimits.daily_quota_limit) * 100
+    : 0;
   </script>
   
   <Toaster richColors />
@@ -152,6 +180,20 @@
           Download .mp3 files
         </Button>
         <p>Tracks: {tracks.length}</p>
+        <div class="max-w-lg mx-auto bg-white shadow-lg rounded-lg p-6">
+          <Progress value={quotaPercentage} class="w-full mb-4 h-4 rounded-full bg-gray-200" />
+        
+          <div class="">
+            <p class="text-lg font-semibold text-gray-700">
+              <span class="text-gray-600">Used:</span> {quotaLimits.quota_used} / {quotaLimits.daily_quota_limit}
+            </p>
+            <p class="text-sm text-gray-500">
+              <span class="text-gray-600">Resets on:</span> {quotaLimits.refreshed_on ? getResetTime() : 'N/A'}
+            </p>
+          </div>
+       
+        </div>
+       
       </div>
       <div class="max-w-7xl mx-auto px-4 flex gap-4 py-5">
         <img src={playlistOverview.images[0].url} alt={playlistOverview.name} class="w-16 h-16 object-cover rounded-md" />
