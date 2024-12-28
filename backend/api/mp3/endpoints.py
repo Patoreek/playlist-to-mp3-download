@@ -11,20 +11,38 @@ _default_clients["ANDROID_MUSIC"] = _default_clients["ANDROID_CREATOR"]
 
 mp3_blueprint = Blueprint('mp3', __name__)
 
-def download_mp3(youtube_video, output_file):
+def download_mp3(youtube_video, output_file, force_download=False, skipped_tracks=None):
+    if skipped_tracks is None:
+        skipped_tracks = []
+
     print("Downloading mp3...")
     url = youtube_video["youtube_url"]
-    trackName = youtube_video["track_name"] + " - " + youtube_video["track_artists"] + " - YT.m4a"
-    trackName = re.sub(r'[<>:"/\\|?*]', '', trackName)  # Remove invalid characters
-    trackName = trackName.strip()  # Remove leading/trailing whitespace
+    track_name = youtube_video["track_name"] + " - " + youtube_video["track_artists"] + " - YT.m4a"
+    track_name = re.sub(r'[<>:"/\\|?*]', '', track_name)  # Remove invalid characters
+    track_name = track_name.strip()  # Remove leading/trailing whitespace
+    
+    # Full file path
+    full_file_path = os.path.join(output_file, track_name)
+    
+    # Check if file exists and force_download is False
+    if not force_download and os.path.exists(full_file_path):
+        print(f"File '{track_name}' already exists in the output path.")
+        return
+    
+    try:
+        # Proceed to download if the file doesn't exist or if force_download is True
+        yt = YouTube(url, on_progress_callback=on_progress, use_oauth=True)
+        print(yt.title)
 
-    yt = YouTube(url, on_progress_callback=on_progress, use_oauth=True)
-    print(yt.title)
-
-    ys = yt.streams.get_audio_only()
-    ys.download(output_path=output_file, filename=trackName)
+        ys = yt.streams.get_audio_only()
+        if ys is None:
+            raise AttributeError(f"No audio-only stream available for track: {track_name}")
         
-    print(f"MP3 downloaded and saved as {output_file}")
+        ys.download(output_path=output_file, filename=track_name)
+        print(f"MP3 downloaded and saved as {track_name}")
+    except Exception as e:
+        print(f"Error downloading track '{track_name}': {e}")
+        skipped_tracks.append(track_name)  # Add the track name to the skipped list
 
 def generate_mp3_files(playlist_id):
     print("Generating MP3 Files from playlist...")
