@@ -55,8 +55,8 @@ def generate_mp3_files(playlist_id):
     # print("Selected YouTube Links:")
     # print(selected_youtube_links)
 
-    # for youtube_video in selected_youtube_links:
-    #     download_mp3(youtube_video, "backend/m4a_files/" + playlist_name + "-" + playlist_id)
+    for youtube_video in selected_youtube_links:
+        download_mp3(youtube_video, "backend/m4a_files/" + playlist_name + "-" + playlist_id)
 
     
     # Get the base directory of your backend folder

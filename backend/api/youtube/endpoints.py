@@ -6,6 +6,7 @@ import os
 from dotenv import load_dotenv
 import json
 from backend.api.youtube.youtube_quota_manager import can_make_api_call, increment_quota_usage
+from backend.api.youtube.selenium_functions import get_youtube_results_selenium
 
 load_dotenv()
 
@@ -126,8 +127,11 @@ def get_youtube_links():
     pageSize = data['pageSize']
     
     # Process the song names to add ' - Extended' to each one
-    results = get_youtube_links_from_songs(playlistId, offset, pageSize)
-
+    # results = get_youtube_links_from_songs(playlistId, offset, pageSize)
+    # if results.apiStatus == 'restricted': 
+    #     print('YT API Restricted. Using Selenium...')
+        # results = get_youtube_results_selenium(playlistId, offset, pageSize)
+    results = get_youtube_results_selenium(playlistId, offset, pageSize)
     # Return the YouTube links in the response
     return jsonify(results)
 

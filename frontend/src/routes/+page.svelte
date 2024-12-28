@@ -4,6 +4,7 @@
 
     import spotifyLogo from '../../src/images/icons/spotify_logo.svg';
     import youtubeLogo from '../../src/images/icons/youtube_logo.svg';
+    import placeholderMusicImg from '../../src/images/placeholder_music_img.png';
     import { Checkbox } from "$lib/components/ui/checkbox";
     import { Progress } from "$lib/components/ui/progress";
     import { Button } from "$lib/components/ui/button";
@@ -21,8 +22,8 @@
     // const spotifyPlaylistId = "4QS0wutGTV59WwcXaI4pbn"; // Augh Playlist
     // const spotifyPlaylistId = "4UvlgqVm4gE5cyOx81JSMj"; // House Classics
     // const spotifyPlaylistId = "4zndP2wvkpiai68dQQuGUu"; // Techno
-    // const spotifyPlaylistId = "5H2r42I3k1ME2n8rCM1b40"; // Deep Beats
-    const spotifyPlaylistId = "4Pgk83d5LW0xbR1ivSbsC8"; // EDM
+    const spotifyPlaylistId = "5H2r42I3k1ME2n8rCM1b40"; // Deep Beats
+    // const spotifyPlaylistId = "4Pgk83d5LW0xbR1ivSbsC8"; // EDM
   
     // Fetch data from the server
     const fetchSpotifyPlaylist = async () => {
@@ -276,7 +277,7 @@
               <ul class="mt-4 space-y-2">
               {#each track.youtube_links as video}
                   <li class="flex items-center space-x-4">
-                  <img src={video.thumbnails.medium.url} alt={video.title} class="w-16 h-16 object-cover rounded-md" />
+                  <img src={video.thumbnails.medium.url || placeholderMusicImg} alt={video.title} class="w-16 h-16 object-cover rounded-md" />
                   <div>
                       <img src={youtubeLogo} alt="Youtube Logo" width="26px" height="26px"/>
                       <a href={video.url} target="_blank" class="text-sm font-semibold text-blue-500 hover:underline">
